@@ -54,3 +54,14 @@ app.add_middleware(
 
 # Register routes
 app.include_router(router)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc: Exception):
+    import traceback
+    from fastapi.responses import JSONResponse
+    logger.error(f"Unhandled exception on {request.method} {request.url}: {exc}\n{traceback.format_exc()}")
+    return JSONResponse(
+        status_code=500,
+        content={"error": str(exc), "detail": "Internal Server Error", "path": str(request.url.path)},
+    )

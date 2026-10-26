@@ -52,8 +52,8 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# Large Parquet Cache Files (Reproducible via Elexon API)
-*.parquet
-!data/.gitkeep
-backend/data/*.parquet
-!backend/data/.gitkeep
+# Track January 2026 Parquet Data in repository for production deployment
+!data/*.parquet
+!backend/data/*.parquet
+!data/*.json
+!backend/data/*.json

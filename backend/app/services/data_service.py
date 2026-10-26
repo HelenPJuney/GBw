@@ -38,7 +38,10 @@ class DataService:
         self._duplicate_forecasts: int = 0
         self._matched_cache: Optional[pd.DataFrame] = None
         self.data_dir = settings.DATA_DIR
-        os.makedirs(self.data_dir, exist_ok=True)
+        try:
+            os.makedirs(self.data_dir, exist_ok=True)
+        except OSError:
+            pass
 
     def _is_cache_valid(self) -> bool:
         if self._cache_timestamp is None:
@@ -46,16 +49,22 @@ class DataService:
         return (time.time() - self._cache_timestamp) < settings.CACHE_TTL_SECONDS
 
     def _resolve_data_path(self, filename: str) -> str:
+        services_dir = os.path.dirname(os.path.abspath(__file__))
+        app_dir = os.path.dirname(services_dir)
+        backend_dir = os.path.dirname(app_dir)
+        root_dir = os.path.dirname(backend_dir)
         candidates = [
+            os.path.join(backend_dir, "data", filename),
+            os.path.join(root_dir, "data", filename),
             os.path.join(self.data_dir, filename),
             os.path.join("..", self.data_dir, filename),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", filename),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "backend", "data", filename),
+            os.path.join(os.getcwd(), "data", filename),
+            os.path.join(os.getcwd(), "backend", "data", filename),
         ]
         for c in candidates:
             if os.path.exists(c):
                 return c
-        return os.path.join(self.data_dir, filename)
+        return os.path.join(backend_dir, "data", filename)
 
     def _actuals_parquet_path(self) -> str:
         return self._resolve_data_path("actuals_wind_jan2026.parquet")
@@ -210,8 +219,11 @@ class DataService:
         df["startTime_uk"] = df["startTime"].dt.tz_convert(UK_TZ)
 
         # Persist to Parquet
-        df.to_parquet(self._actuals_parquet_path(), index=False)
-        logger.info(f"Saved {len(df)} actual WIND records to Parquet")
+        try:
+            df.to_parquet(self._actuals_parquet_path(), index=False)
+            logger.info(f"Saved {len(df)} actual WIND records to Parquet")
+        except Exception as e:
+            logger.warning(f"Could not persist actuals to disk (read-only filesystem): {e}")
 
         self._actuals_cache = df
         self._cache_timestamp = time.time()
@@ -280,8 +292,11 @@ class DataService:
         df["publishTime_uk"] = df["publishTime"].dt.tz_convert(UK_TZ)
 
         # Persist
-        df.to_parquet(self._forecasts_parquet_path(), index=False)
-        logger.info(f"Saved {len(df)} forecast records to Parquet")
+        try:
+            df.to_parquet(self._forecasts_parquet_path(), index=False)
+            logger.info(f"Saved {len(df)} forecast records to Parquet")
+        except Exception as e:
+            logger.warning(f"Could not persist forecasts to disk (read-only filesystem): {e}")
 
         self._forecasts_cache = df
         self._cache_timestamp = time.time()
